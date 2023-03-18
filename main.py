@@ -5,7 +5,6 @@ from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation
 
 
 async def words_send_msg(message: Message):
-
     true_data = await words_get_word()
     true_word = true_data.word
     true_translation = true_data.translation
@@ -72,7 +71,7 @@ async def check_answer(message: Message):
         await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
 
 
-async def run(dp):
+def run(dp):
     dp.register_message_handler(alphabet_send_msg, commands=['alphabet'])
     dp.register_message_handler(words_send_msg, commands=['words'])
     dp.register_message_handler(check_answer)

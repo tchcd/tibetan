@@ -1,7 +1,4 @@
-#from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 import asyncpg
-#from create_bot import dp
-#from aiogram.dispatcher.filters.state import State, StatesGroup
 from typing import NamedTuple, List
 import config
 
