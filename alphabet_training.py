@@ -1,9 +1,10 @@
 import asyncpg
 from typing import NamedTuple, List
+from dataclasses import dataclass
 import config
 
-
-class Letter(NamedTuple):
+@dataclass
+class Letter:
     id: int
     letter: str
     transcription: str
@@ -11,10 +12,6 @@ class Letter(NamedTuple):
 
 async def alphabet_get_word() -> Letter:
     conn = await asyncpg.connect(config.pg_con)
-    # res = await conn.fetchrow(
-    #                 """SELECT id, word, translation, last_attempt, next_attempt, interval
-    #                    FROM dict ORDER BY next_attempt ASC LIMIT 1
-    #                 """)
     res = await conn.fetchrow(
                         """SELECT id, letter, transcription
                            FROM alphabet ORDER BY random() LIMIT 1
