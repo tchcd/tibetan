@@ -1,6 +1,6 @@
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from create_bot import dp
-from words_training import words_get_word, words_get_wrong_translation, add_attempt_to_history
+from words_training import words_get_word, words_get_wrong_translation, add_attempt_to_history, check_word_criterion
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation
 import asyncpg
 import config
@@ -24,6 +24,9 @@ async def user_registration(message: Message):
 async def words_send_msg(message: Message):
     user_id = message.from_user.id
     true_data = await words_get_word(user_id)
+    if not await check_word_criterion(true_data.next_attemp, message):
+        print('STOP')
+        return
     true_word = true_data.word
     true_translation = true_data.translation
 
@@ -78,11 +81,20 @@ async def alphabet_send_msg(message: Message):
 
 
 async def check_answer(message: Message):
+    # TODO делать проверку на игру, и запускать функцию в зависимоти от
     user_id = message.from_user.id
     user_answer = message.text
     user_data = dp.current_state(user=user_id)
     data = await user_data.get_data()
     correct_answer = data.get('true_translation')
+
+
+    # функция чек коррект ансвер
+
+    # # функция проверки игры
+    # if data.get('training') == 'words_training':
+    #     # запускаем
+    # elif data.get('training') == 'alphabet':
 
 
     print('DEBUG ответ юзера:', user_answer)
@@ -98,11 +110,17 @@ async def check_answer(message: Message):
         if data.get('training') == 'alphabet':
             await alphabet_send_msg(message)
     else:
-        await add_attempt_to_history(user=user_id,
-                                     word=data.get('true_word'),
-                                     message=message, success=False)
-        # обновить скор
         await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
+        if data.get('training') == 'words_training':
+            await add_attempt_to_history(user=user_id,
+                                         word=data.get('true_word'),
+                                         message=message, success=False)
+            # обновить скор
+            await words_send_msg(message)
+
+        if data.get('training') == 'alphabet':
+            await alphabet_send_msg(message)
+
 
 
 def run(dp):

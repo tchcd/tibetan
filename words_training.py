@@ -2,7 +2,7 @@ import asyncpg
 import config
 from typing import NamedTuple, List, Tuple, Optional
 from datetime import datetime, timedelta
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
 
 
@@ -11,24 +11,30 @@ class Word:
     id: int
     word: str
     translation: str
+    next_attemp: datetime
 
 
 @dataclass
 class WordHistoryAttempt:
     id: int
     user_id: int
-    word_id: int
+    word: str
     last_attempt: datetime
     next_attempt: datetime
     interval: int
 
 
 async def check_word_criterion(next_attempt, message):
-    print('ВЫЗВАЛ ФУНКЦИЮ')
-    if next_attempt > datetime.now():
-        await message.answer("Нет новых слов для повторений. Приходите позже :)")
+    time_now = datetime.now()
+    if next_attempt is None:
+        return True
+    if next_attempt > time_now:
+        keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        keyboard.add(KeyboardButton(f'Следущее слово в {next_attempt}'))
+        await message.answer("Нет новых слов для повторений. Приходите позже :)", reply_markup=keyboard)
+        return False
     else:
-        await message.answer("КАКОЙ ТО ТЕСТ КАКОЙ ТО ТЕСТ КАКОЙТ ОЕТЕСЬ")
+        return True
 
 
 async def words_get_word(user_id: int) -> Word:
@@ -46,10 +52,8 @@ async def words_get_word(user_id: int) -> Word:
     #                         FROM words w ORDER BY random() LIMIT 1
     #                     """)
     print('ВЫБРАЛ СЛОВО ПОСЛЕ ЗАПРОСА', word)
-    next_attempt = word[-1]
-
     await conn.close()
-    return Word(*word[:-1])
+    return Word(*word)
 
 
 async def words_get_wrong_translation(true_word: str) -> List[tuple]:
@@ -69,30 +73,35 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
 async def add_attempt_to_history(user: int, word: str, message: Message, success: bool):
     date_format = '%Y-%m-%d %H:%M:%S'
     default_interval = 3600  # one hour
-    attempt = WordHistoryAttempt(id=0, user_id=0, word_id=0,
+    attempt = WordHistoryAttempt(id=0, user_id=0, word='',
                                  last_attempt=datetime.min, next_attempt=datetime.min,
                                  interval=0)
     attempt.last_attempt = datetime.now().replace(microsecond=0)
 
     print(f'ВЫБРАЛ СЛОВО {word}')
 
-    conn = await asyncpg.connect(config.pg_con)
-    attempt.user_id = await conn.fetchval(
-           f"""SELECT id FROM users WHERE id = '{user}' LIMIT 1""")
-    attempt.word_id = await conn.fetchval(
-            f"""SELECT id FROM words WHERE word = '{word}' LIMIT 1""")
-    if not attempt.user_id:
-       await message.answer("Что-то пошло не так, нажмите /start и попробуйте снова")
 
-    print(f'USER {attempt.user_id}, WORD {attempt.word_id}')
+    conn = await asyncpg.connect(config.pg_con)
+    attempt.user_id = user
+    attempt.word_id = await conn.fetchval(
+        f"""SELECT id FROM words WHERE word = '{word}'"""
+    )
+    if not attempt.user_id:
+        await message.answer("Что-то пошло не так, нажмите /start и попробуйте снова")
+
+    print(f'USER {attempt.user_id}, WORD_ID {attempt.word_id}')
 
     history_record = await conn.fetchrow(
-        f"""SELECT id, interval FROM words_history 
+        f"""SELECT id, interval, next_attempt FROM words_history 
         WHERE user_id = '{attempt.user_id}' AND word_id = '{attempt.word_id}'""")
 
+    print(history_record)
+    # Проверка наступила ли следующая попытка для слова
+
     if history_record:
-        attempt.id, attempt.interval = list(history_record.values())
-        attempt.interval = attempt.interval * 2 if success else max(attempt.interval // 3, 1)
+        history_record = list(history_record)
+        attempt.id, attempt.interval = history_record[0], history_record[1]
+        attempt.interval = attempt.interval * 2 if success else attempt.interval / 3 + timedelta(seconds=1800).total_seconds()
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=attempt.interval)
 
         if attempt.next_attempt > attempt.last_attempt + timedelta(days=30):
@@ -112,7 +121,7 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
                   attempt.next_attempt,
                   attempt.interval]
         await conn.execute(update_row, *values)
-
+        await conn.close()
     else:
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=default_interval)
         insert_row = f"""INSERT INTO words_history (user_id, word_id, last_attempt, next_attempt)
@@ -122,5 +131,7 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
                   attempt.last_attempt,
                   attempt.next_attempt]
         await conn.execute(insert_row, *values)
+        await conn.close()
+
 
 
