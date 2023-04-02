@@ -30,9 +30,10 @@ async def check_word_criterion(next_attempt, message):
         return True
     if next_attempt > time_now:
         keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-        keyboard.add(KeyboardButton(f'Следущее слово в {next_attempt}'))
-        await message.answer("Нет новых слов для повторений. Приходите позже :)", reply_markup=keyboard)
-        return False
+        keyboard.add(KeyboardButton('Выбрать тренировку', callback_data='start'))
+        await message.answer(f"Нет новых слов для повторений. Следующее слово в {next_attempt}", reply_markup=keyboard)
+        #raise ValueError('Нет слов для повторений!')
+        #return False
     else:
         return True
 
@@ -60,7 +61,7 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
     conn = await asyncpg.connect(config.pg_con)
     res = await conn.fetch(
         f"""SELECT translation
-            FROM public.dict
+            FROM words
             WHERE word != '{true_word}'
             ORDER BY random()
             LIMIT 3;
@@ -68,6 +69,21 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
     await conn.close()
     wrong_words = [tuple(row) for row in res]
     return wrong_words
+
+
+async def words_check_answer(user_id, user_answer, correct_answer, message, data):
+    if user_answer == correct_answer:
+        await message.answer("Вы выбрали правильный ответ!")
+        await add_attempt_to_history(user=user_id,
+                                     word=data.get('true_word'),
+                                     message=message, success=True)
+        # обновить скор
+    else:
+        await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
+        await add_attempt_to_history(user=user_id,
+                                     word=data.get('true_word'),
+                                     message=message, success=False)
+        # обновить скор
 
 
 async def add_attempt_to_history(user: int, word: str, message: Message, success: bool):

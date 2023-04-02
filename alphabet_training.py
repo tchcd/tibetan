@@ -32,3 +32,10 @@ async def alphabet_get_wrong_translation(true_word: str) -> List[tuple]:
     await conn.close()
     wrong_words = [tuple(row) for row in res]
     return wrong_words
+
+
+async def alphabet_check_answer(user_answer, correct_answer, message):
+    if user_answer == correct_answer:
+        await message.answer("Вы выбрали правильный ответ!")
+    else:
+        await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")

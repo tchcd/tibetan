@@ -1,7 +1,12 @@
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from create_bot import dp
-from words_training import words_get_word, words_get_wrong_translation, add_attempt_to_history, check_word_criterion
-from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation
+from aiogram.types import CallbackQuery
+from aiogram.dispatcher.filters import Text
+from aiogram.utils.callback_data import CallbackData
+from create_bot import dp, bot
+from words_training import words_get_word, words_get_wrong_translation,\
+    add_attempt_to_history, check_word_criterion, words_check_answer
+from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
+from random_training import *
 import asyncpg
 import config
 
@@ -9,9 +14,12 @@ import config
 async def user_registration(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
-    await message.answer(f"Привет! \nВот тренировки которые \n"
-                         f"/words - слово-перевод \n/alphabet - тренировка надписных и подписных\n"
-                         f"Достижения и другие команды можно посмотреть в синем Menu")
+    await message.answer(f"Привет! \nВыберите тренировку:\n"
+                         f"/words - слово-перевод с баллами. Каждый правильный ответ +10 баллов, неправильный -5 баллов\n"
+                         f"Правильный и не правильный ответы изменяют время до следующего повторения слова.\n"
+                         f"/alphabet - тренировка надписных и подписных\n"
+                         f"/random - тренировка слово-перевод для случайных слов. Без начисления балов.\n\n"
+                         f"Достижения и все команды можно посмотреть в синем меню")
 
     sql = """INSERT INTO public.users (id, name) VALUES($1, $2)"""
     conn = await asyncpg.connect(config.pg_con)
@@ -52,7 +60,6 @@ async def words_send_msg(message: Message):
 
 
 async def alphabet_send_msg(message: Message):
-
     true_data = await alphabet_get_word()
     true_word = true_data.letter
     true_translation = true_data.transcription
@@ -80,46 +87,52 @@ async def alphabet_send_msg(message: Message):
                               'training': 'alphabet'})
 
 
+
+async def random_send_msg(message: Message):
+    true_data = await random_get_word()
+    true_word = true_data.word
+    true_translation = true_data.translation
+    user_id = message.from_user.id
+
+    wrong_words = await random_get_wrong_translation(true_word)
+
+    answers = [word[0] for word in list(set(wrong_words + [(true_translation,)]))]
+
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    for answer1, answer2 in zip(answers[:2], answers[2:]):
+        keyboard.add(KeyboardButton(str(answer1)),
+                     KeyboardButton(str(answer2)))
+
+    await message.answer(f"Выберите правильный перевод слова: {true_word}", reply_markup=keyboard)
+    message.answer_data = {'correct_answer': true_translation}
+
+    user_data = dp.current_state(user=user_id)
+    await user_data.set_data({'true_translation': true_translation,
+                              'true_word': true_word,
+                              'training': 'random'})
+
+
 async def check_answer(message: Message):
-    # TODO делать проверку на игру, и запускать функцию в зависимоти от
     user_id = message.from_user.id
     user_answer = message.text
     user_data = dp.current_state(user=user_id)
     data = await user_data.get_data()
     correct_answer = data.get('true_translation')
 
-
-    # функция чек коррект ансвер
-
-    # # функция проверки игры
-    # if data.get('training') == 'words_training':
-    #     # запускаем
-    # elif data.get('training') == 'alphabet':
-
-
-    print('DEBUG ответ юзера:', user_answer)
-    print('DEBUG корректный ответ:', correct_answer)
-    if user_answer == correct_answer:
-        await message.answer("Вы выбрали правильный ответ!")
-        if data.get('training') == 'words_training':
-            await add_attempt_to_history(user=user_id,
-                                         word=data.get('true_word'),
-                                         message=message, success=True)
-            # обновить скор
-            await words_send_msg(message)
-        if data.get('training') == 'alphabet':
-            await alphabet_send_msg(message)
+    #try:
+    if data.get('training') == 'words_training':
+        await words_check_answer(user_id, user_answer, correct_answer, message, data)
+        await words_send_msg(message)
+    elif data.get('training') == 'alphabet':
+        await alphabet_check_answer(user_answer, correct_answer, message)
+        await alphabet_send_msg(message)
+    elif data.get('training') == 'random':
+        await random_check_answer(user_answer, correct_answer, message)
+        await random_send_msg(message)
     else:
-        await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
-        if data.get('training') == 'words_training':
-            await add_attempt_to_history(user=user_id,
-                                         word=data.get('true_word'),
-                                         message=message, success=False)
-            # обновить скор
-            await words_send_msg(message)
-
-        if data.get('training') == 'alphabet':
-            await alphabet_send_msg(message)
+        await message.answer(f"Что-то пошло не так! Нажмите /start и попробуйте снова! :)")
+    #except Exception:
+    #    await message.answer(f"Что-то пошло не так! Нажмите /start и попробуйте снова! :)")
 
 
 
@@ -127,4 +140,6 @@ def run(dp):
     dp.register_message_handler(user_registration, commands=['start'])
     dp.register_message_handler(alphabet_send_msg, commands=['alphabet'])
     dp.register_message_handler(words_send_msg, commands=['words'])
+    dp.register_message_handler(random_send_msg, commands=['random'])
     dp.register_message_handler(check_answer)
+    #dp.register_callback_query_handler(process_callback_button1, lambda inline_query: True)
