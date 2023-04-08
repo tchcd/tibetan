@@ -51,7 +51,7 @@ async def create_score(conn):
     sql = """DROP TABLE IF EXISTS score CASCADE;
     CREATE TABLE score (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id),
+    user_id INTEGER UNIQUE REFERENCES users(id),
     current_correct_count INTEGER,
     total_correct_count INTEGER,
     first_place_count INTEGER,

@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
 
+SUCCESS_SCORE_CONST = 10
+FAILURE_SCORE_CONST = 5
+
 
 @dataclass
 class Word:
@@ -30,16 +33,27 @@ async def check_word_criterion(next_attempt, message):
         return True
     if next_attempt > time_now:
         keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-        keyboard.add(KeyboardButton('Выбрать тренировку', callback_data='start'))
-        await message.answer(f"Нет новых слов для повторений. Следующее слово в {next_attempt}", reply_markup=keyboard)
+        keyboard.add(KeyboardButton('/start', callback_data='start'))
+        await message.answer(f"Нет новых слов для повторений. \nСледующее слово в {next_attempt} \n"
+                             f"Нажмите /start и выберите тренировку", reply_markup=keyboard)
         #raise ValueError('Нет слов для повторений!')
         #return False
     else:
         return True
 
 
+async def run_connection():
+    conn = await asyncpg.connect(config.pg_con)
+    return conn
+
+
+async def close_connection(conn):
+    await conn.close()
+
+
 async def words_get_word(user_id: int) -> Word:
     conn = await asyncpg.connect(config.pg_con)
+
     word = await conn.fetchrow(
                     f"""SELECT w.id, w.word, w.translation, next_attempt
                         FROM words w
@@ -71,19 +85,46 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
     return wrong_words
 
 
+async def words_get_score(conn, user_id: str):
+    print('ПОЛУЧАЮ СКОР')
+    #conn = await asyncpg.connect(config.pg_con)
+    score = await conn.fetchval(
+        f"""SELECT current_correct_count
+            FROM score
+            WHERE user_id = '{user_id}';
+        """)
+    #await conn.close()
+    #wrong_words = [tuple(row) for row in res]
+    print(f"ПОЛУЧИЛ СКОР {int(score)}")
+    return int(score)
+
+
 async def words_check_answer(user_id, user_answer, correct_answer, message, data):
+    conn = await asyncpg.connect(config.pg_con)
+    score = data.get('score')
     if user_answer == correct_answer:
         await message.answer("Вы выбрали правильный ответ!")
         await add_attempt_to_history(user=user_id,
                                      word=data.get('true_word'),
                                      message=message, success=True)
         # обновить скор
+        print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
+        score += SUCCESS_SCORE_CONST
+        sql = f"""UPDATE score SET current_correct_count = $1"""
+        await conn.execute(sql, score)
+        print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
     else:
         await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
         await add_attempt_to_history(user=user_id,
                                      word=data.get('true_word'),
                                      message=message, success=False)
         # обновить скор
+        print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
+        score += FAILURE_SCORE_CONST
+        sql = f"""UPDATE score SET current_correct_count = $1"""
+        await conn.execute(sql, score)
+        print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
+    await conn.close()
 
 
 async def add_attempt_to_history(user: int, word: str, message: Message, success: bool):

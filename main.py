@@ -1,6 +1,6 @@
 from create_bot import dp, bot
 from words_training import words_get_word, words_get_wrong_translation,\
-    add_attempt_to_history, check_word_criterion, words_check_answer
+    add_attempt_to_history, check_word_criterion, words_check_answer, words_get_score
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
 import asyncpg
@@ -19,27 +19,37 @@ async def user_registration(message: Message):
                          f"/score - Достижения\n\n"
                          f"Все команды можно посмотреть в синем меню")
 
-    sql = """INSERT INTO public.users (id, name) VALUES($1, $2)"""
+    user_reg = """INSERT INTO public.users (id, name) VALUES($1, $2)"""
+    score_reg = """INSERT INTO public.score (user_id) VALUES($1)"""
     conn = await asyncpg.connect(config.pg_con)
     try:
-        await conn.execute(sql, *[user_id, username])
+        await conn.execute(user_reg, *[user_id, username])
     except asyncpg.exceptions.UniqueViolationError:
         pass
+    try:
+        await conn.execute(score_reg, *[user_id])
+    except asyncpg.exceptions.UniqueViolationError:
+        pass
+    await conn.close()
 
 
 async def words_send_msg(message: Message):
     user_id = message.from_user.id
+
+
     true_data = await words_get_word(user_id)
     if not await check_word_criterion(true_data.next_attemp, message):
-        print('STOP')
         return
+    conn = await asyncpg.connect(config.pg_con)
+    score = await words_get_score(conn, user_id)
+    await conn.close()
     true_word = true_data.word
     true_translation = true_data.translation
-
     print(f'DEBUG выбрано слово: {true_word}')
     wrong_words = await words_get_wrong_translation(true_word)
     print(f'DEBUG неверные переводы: {wrong_words}')
     print(f'DEBUG истинный перевод: {((true_translation,))}')
+
 
     answers = [word[0] for word in list(set(wrong_words + [(true_translation,)]))]
 
@@ -54,6 +64,7 @@ async def words_send_msg(message: Message):
     user_data = dp.current_state(user=user_id)
     await user_data.set_data({'true_translation': true_translation,
                               'true_word': true_word,
+                              'score':score,
                               'training': 'words_training'})
 
 
@@ -82,7 +93,6 @@ async def alphabet_send_msg(message: Message):
     await user_data.set_data({'true_translation': true_translation,
                               'true_word': true_word,
                               'training': 'alphabet'})
-
 
 
 async def random_send_msg(message: Message):
