@@ -52,8 +52,7 @@ async def create_score(conn):
     CREATE TABLE score (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id),
-    current_correct_count INTEGER,
-    total_correct_count INTEGER,
+    current_score INTEGER,
     first_place_count INTEGER,
     second_place_count INTEGER,
     third_place_count INTEGER

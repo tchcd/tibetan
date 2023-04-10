@@ -5,6 +5,7 @@ from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation,
 from random_training import *
 import asyncpg
 import config
+#from aiogram.types.
 
 
 async def user_registration(message: Message):
@@ -35,14 +36,10 @@ async def user_registration(message: Message):
 
 async def words_send_msg(message: Message):
     user_id = message.from_user.id
-
-
+    score = await words_get_score(user_id)
     true_data = await words_get_word(user_id)
-    if not await check_word_criterion(true_data.next_attemp, message):
+    if not await check_word_criterion(true_data.next_attempt, message):
         return
-    conn = await asyncpg.connect(config.pg_con)
-    score = await words_get_score(conn, user_id)
-    await conn.close()
     true_word = true_data.word
     true_translation = true_data.translation
     print(f'DEBUG выбрано слово: {true_word}')
@@ -64,7 +61,7 @@ async def words_send_msg(message: Message):
     user_data = dp.current_state(user=user_id)
     await user_data.set_data({'true_translation': true_translation,
                               'true_word': true_word,
-                              'score':score,
+                              'score': score,
                               'training': 'words_training'})
 
 
@@ -119,6 +116,53 @@ async def random_send_msg(message: Message):
                               'training': 'random'})
 
 
+async def get_score(message: Message):
+    msg_user_id = message.from_user.id
+    conn = await asyncpg.connect(config.pg_con)
+    # name, current_score, first_place_count,\
+    # second_place_count, third_place_count = \
+    ans = await conn.fetch(
+              f"""select user_id, name, current_score,
+                    first_place_count, second_place_count, third_place_count
+                    from users u
+                    left join score s on u.id=s.user_id
+                    order by current_score desc
+              """)
+    await conn.close()
+    print(f'ОТДАЛ ОН {ans}')
+
+    msg = ""
+    user_seen_flag = 0
+
+    for i, row in enumerate(ans, start=1):
+        user_id = row['user_id']
+        name = row['name']
+        current_score = row['current_score']
+        first_place_count = row['first_place_count']
+        second_place_count = row['second_place_count']
+        third_place_count = row['third_place_count']
+
+        if i <= 3:
+            if user_id == msg_user_id:
+                # Выведем жирным
+                msg += f"<b>{i}. {name} - {current_score} баллов!\n" \
+                       f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}</b> \n"
+                user_seen_flag = 1
+            else:
+                msg += f"{i}. {name} - {current_score} баллов!\n" \
+                       f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count} \n"
+        if user_id == msg_user_id and not user_seen_flag:
+            if i != 4:
+                msg += ".....\n"
+            msg += f"<b>{i}. {name} - {current_score} баллов!\n" \
+                   f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}> </b>\n"
+            msg += ".....\n"
+        if i == len(ans):
+            msg += f"{i}. LoshadiNaPereprave - {current_score} баллов!"
+            f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}> \n"
+    await message.answer(msg, parse_mode='HTML')
+
+
 async def feedback(message: Message):
     await message.answer(f"Отправьте сообщение с исправлением. Укажите слово и ошибку/перевод в свободном формате")
     user_id = message.from_user.id
@@ -152,12 +196,12 @@ async def check_answer(message: Message):
         await message.answer(f"Что-то пошло не так! Нажмите /start и попробуйте снова! :)")
 
 
-
 def run(dp):
     dp.register_message_handler(user_registration, commands=['start'])
     dp.register_message_handler(alphabet_send_msg, commands=['alphabet'])
     dp.register_message_handler(words_send_msg, commands=['words'])
     dp.register_message_handler(random_send_msg, commands=['random'])
+    dp.register_message_handler(get_score, commands=['score'])
     dp.register_message_handler(feedback, commands=['feedback'])
     dp.register_message_handler(check_answer)
     #dp.register_callback_query_handler(process_callback_button1, lambda inline_query: True)

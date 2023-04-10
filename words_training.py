@@ -14,7 +14,7 @@ class Word:
     id: int
     word: str
     translation: str
-    next_attemp: datetime
+    next_attempt: datetime = '1111-11-11 00:00:00'
 
 
 @dataclass
@@ -61,11 +61,12 @@ async def words_get_word(user_id: int) -> Word:
                         WHERE wh.user_id = {user_id} or wh.user_id is Null
                         ORDER BY COALESCE(next_attempt, '1111-11-11') ASC LIMIT 1
                     """)
-    # if not word:
-    #     word = await conn.fetchrow(
-    #                     f"""SELECT w.id, w.word, w.translation
-    #                         FROM words w ORDER BY random() LIMIT 1
-    #                     """)
+    if not word:
+        word = await conn.fetchrow(
+                        f"""SELECT w.id, w.word, w.translation, next_attempt
+                            --NOW() AT TIME ZONE 'Europe/Moscow' as next_attempt
+                            FROM words w ORDER BY random() LIMIT 1
+                        """)
     print('ВЫБРАЛ СЛОВО ПОСЛЕ ЗАПРОСА', word)
     await conn.close()
     return Word(*word)
@@ -85,17 +86,14 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
     return wrong_words
 
 
-async def words_get_score(conn, user_id: str):
-    print('ПОЛУЧАЮ СКОР')
-    #conn = await asyncpg.connect(config.pg_con)
+async def words_get_score(user_id: str):
+    conn = await asyncpg.connect(config.pg_con)
     score = await conn.fetchval(
-        f"""SELECT current_correct_count
+        f"""SELECT current_score
             FROM score
             WHERE user_id = '{user_id}';
         """)
-    #await conn.close()
-    #wrong_words = [tuple(row) for row in res]
-    print(f"ПОЛУЧИЛ СКОР {int(score)}")
+    await conn.close()
     return int(score)
 
 
@@ -110,8 +108,8 @@ async def words_check_answer(user_id, user_answer, correct_answer, message, data
         # обновить скор
         print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
         score += SUCCESS_SCORE_CONST
-        sql = f"""UPDATE score SET current_correct_count = $1"""
-        await conn.execute(sql, score)
+        sql = f"""UPDATE score SET current_score = $1 WHERE user_id = $2"""
+        await conn.execute(sql, *[score, user_id])
         print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
     else:
         await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
@@ -121,8 +119,8 @@ async def words_check_answer(user_id, user_answer, correct_answer, message, data
         # обновить скор
         print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
         score += FAILURE_SCORE_CONST
-        sql = f"""UPDATE score SET current_correct_count = $1"""
-        await conn.execute(sql, score)
+        sql = f"""UPDATE score SET current_score = $1 WHERE user_id = $2"""
+        await conn.execute(sql, *[score, user_id])
         print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
     await conn.close()
 
