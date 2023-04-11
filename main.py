@@ -3,6 +3,7 @@ from words_training import words_get_word, words_get_wrong_translation,\
     add_attempt_to_history, check_word_criterion, words_check_answer, words_get_score
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
+from aiogram.types import ReplyKeyboardRemove
 import asyncpg
 import config
 #from aiogram.types.
@@ -13,7 +14,7 @@ async def user_registration(message: Message):
     username = message.from_user.username
     await message.answer(f"Привет! \nВыберите тренировку:\n"
                          f"/words - слово-перевод с баллами. Каждый правильный ответ +10 баллов, неправильный -5 баллов\n"
-                         f"Правильный и не правильный ответы изменяют время до следующего повторения слова.\n"
+                         f"Ответы изменяют время до следующего повторения слова.\n"
                          f"/alphabet - тренировка надписных и подписных\n"
                          f"/random - тренировка слово-перевод для случайных слов. Без начисления балов.\n"
                          f"/feedback - Обратная связь и сообщения об ошибках. \n"
@@ -160,7 +161,7 @@ async def get_score(message: Message):
         if i == len(ans):
             msg += f"{i}. LoshadiNaPereprave - {current_score} баллов!"
             f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}> \n"
-    await message.answer(msg, parse_mode='HTML')
+    await message.answer(msg, parse_mode='HTML', reply_markup=ReplyKeyboardRemove())
 
 
 async def feedback(message: Message):
@@ -170,6 +171,19 @@ async def feedback(message: Message):
     user_data = dp.current_state(user=user_id)
     await user_data.set_data({'username': username,
                               'training': 'feedback'})
+
+
+async def dictionary(message: Message):
+    BATCH_SIZE = 100
+    conn = await asyncpg.connect(config.pg_con)
+    total_words = await conn.fetch("SELECT id, word, translation FROM words")
+    msg = ''
+    for i, batch in enumerate(total_words):
+        msg += f"{batch['id']}. {batch['word']} - {batch['translation']}\n"
+        if (i + 1) % BATCH_SIZE == 0 or i == len(total_words) - 1:
+            await message.answer(msg, reply_markup=ReplyKeyboardRemove())
+            msg = ''
+    await conn.close()
 
 
 async def check_answer(message: Message):
@@ -203,5 +217,6 @@ def run(dp):
     dp.register_message_handler(random_send_msg, commands=['random'])
     dp.register_message_handler(get_score, commands=['score'])
     dp.register_message_handler(feedback, commands=['feedback'])
+    dp.register_message_handler(dictionary, commands=['dictionary'])
     dp.register_message_handler(check_answer)
     #dp.register_callback_query_handler(process_callback_button1, lambda inline_query: True)
