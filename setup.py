@@ -28,7 +28,7 @@ async def create_alphabet(conn):
     sql = """DROP TABLE IF EXISTS alphabet CASCADE;
          CREATE TABLE alphabet (
         id SERIAL PRIMARY KEY,
-        leter VARCHAR(50) UNIQUE,
+        letter VARCHAR(50) UNIQUE,
         transcription VARCHAR(100)
         );"""
     await conn.execute(sql)

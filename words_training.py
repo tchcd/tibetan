@@ -118,7 +118,9 @@ async def words_check_answer(user_id, user_answer, correct_answer, message, data
                                      message=message, success=False)
         # обновить скор
         print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
-        score += FAILURE_SCORE_CONST
+        score -= FAILURE_SCORE_CONST
+        if score < 0:
+            score = 0
         sql = f"""UPDATE score SET current_score = $1 WHERE user_id = $2"""
         await conn.execute(sql, *[score, user_id])
         print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
