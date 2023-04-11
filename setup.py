@@ -52,10 +52,10 @@ async def create_score(conn):
     CREATE TABLE score (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id),
-    current_score INTEGER,
-    first_place_count INTEGER,
-    second_place_count INTEGER,
-    third_place_count INTEGER
+    current_score INTEGER default 0,
+    first_place_count INTEGER default 0,
+    second_place_count INTEGER default 0,
+    third_place_count INTEGER default 0
     );"""
     await conn.execute(sql)
 

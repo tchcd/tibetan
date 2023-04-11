@@ -165,7 +165,8 @@ async def get_score(message: Message):
 
 
 async def feedback(message: Message):
-    await message.answer(f"Отправьте сообщение с исправлением. Укажите слово и ошибку/перевод в свободном формате")
+    await message.answer(f"Отправьте сообщение с исправлением. Скопируйте сообщение с вопросом и сообщение с ответом\n"
+                         f"Укажите верный перевод или замечание в свободном формате")
     user_id = message.from_user.id
     username = message.from_user.username
     user_data = dp.current_state(user=user_id)
