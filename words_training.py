@@ -105,38 +105,28 @@ async def words_check_answer(user_id, user_answer, correct_answer, message, data
         await add_attempt_to_history(user=user_id,
                                      word=data.get('true_word'),
                                      message=message, success=True)
-        # обновить скор
-        print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
         score += SUCCESS_SCORE_CONST
         sql = f"""UPDATE score SET current_score = $1 WHERE user_id = $2"""
         await conn.execute(sql, *[score, user_id])
-        print('ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
     else:
         await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
         await add_attempt_to_history(user=user_id,
                                      word=data.get('true_word'),
                                      message=message, success=False)
-        # обновить скор
-        print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНАВЛЯЮ СКОР')
         score -= FAILURE_SCORE_CONST
         if score < 0:
             score = 0
         sql = f"""UPDATE score SET current_score = $1 WHERE user_id = $2"""
         await conn.execute(sql, *[score, user_id])
-        print('НЕЕ ПРАВИЛЬНЫЙ ОТВЕТ ОБНОВИЛ СКОР')
     await conn.close()
 
 
 async def add_attempt_to_history(user: int, word: str, message: Message, success: bool):
-    date_format = '%Y-%m-%d %H:%M:%S'
     default_interval = 3600  # one hour
     attempt = WordHistoryAttempt(id=0, user_id=0, word='',
                                  last_attempt=datetime.min, next_attempt=datetime.min,
                                  interval=0)
     attempt.last_attempt = datetime.now().replace(microsecond=0)
-
-    print(f'ВЫБРАЛ СЛОВО {word}')
-
 
     conn = await asyncpg.connect(config.pg_con)
     attempt.user_id = user
@@ -146,13 +136,10 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
     if not attempt.user_id:
         await message.answer("Что-то пошло не так, нажмите /start и попробуйте снова")
 
-    print(f'USER {attempt.user_id}, WORD_ID {attempt.word_id}')
-
     history_record = await conn.fetchrow(
         f"""SELECT id, interval, next_attempt FROM words_history 
         WHERE user_id = '{attempt.user_id}' AND word_id = '{attempt.word_id}'""")
 
-    print(history_record)
     # Проверка наступила ли следующая попытка для слова
 
     if history_record:
@@ -165,7 +152,6 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
             attempt.next_attempt = attempt.last_attempt + timedelta(days=30)
             max_data = attempt.last_attempt + timedelta(days=30)
             attempt.interval = (max_data - attempt.last_attempt).total_seconds()
-            print('INTERVAAAl', attempt.interval)
 
         update_row = f"""UPDATE words_history SET 
                                 last_attempt = $1,

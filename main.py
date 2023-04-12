@@ -120,8 +120,6 @@ async def random_send_msg(message: Message):
 async def get_score(message: Message):
     msg_user_id = message.from_user.id
     conn = await asyncpg.connect(config.pg_con)
-    # name, current_score, first_place_count,\
-    # second_place_count, third_place_count = \
     ans = await conn.fetch(
               f"""select user_id, name, current_score,
                     first_place_count, second_place_count, third_place_count
@@ -145,7 +143,6 @@ async def get_score(message: Message):
 
         if i <= 3:
             if user_id == msg_user_id:
-                # Выведем жирным
                 msg += f"<b>{i}. {name} - {current_score} баллов!\n" \
                        f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}</b> \n"
                 user_seen_flag = 1
@@ -220,4 +217,3 @@ def run(dp):
     dp.register_message_handler(feedback, commands=['feedback'])
     dp.register_message_handler(dictionary, commands=['dictionary'])
     dp.register_message_handler(check_answer)
-    #dp.register_callback_query_handler(process_callback_button1, lambda inline_query: True)

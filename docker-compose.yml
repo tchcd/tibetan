@@ -16,11 +16,16 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_DB=public
     volumes:
-      #- ./pgdata:/var/lib/postgresql/data
       - pgdata:/var/lib/postgresql/data
     ports:
       - 5432:5432
     restart: always
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8090:8090"
 
 volumes:
   pgdata:
