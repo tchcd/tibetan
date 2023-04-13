@@ -1,7 +1,6 @@
 from aiogram.utils import executor
 from main import run
 from create_bot import dp
-#import asyncio
 
 
 if __name__ == "__main__":

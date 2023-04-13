@@ -11,10 +11,11 @@ services:
 
   postgres:
     image: postgres
+    container_name: pg
     environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=public
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB=${DB_SCHEMA}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -23,9 +24,10 @@ services:
 
   adminer:
     image: adminer
+    container_name: adminer
     restart: always
     ports:
-      - "8090:8090"
+      - "8080:8080"
 
 volumes:
   pgdata:

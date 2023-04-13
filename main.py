@@ -1,12 +1,11 @@
 from create_bot import dp, bot
 from words_training import words_get_word, words_get_wrong_translation,\
-    add_attempt_to_history, check_word_criterion, words_check_answer, words_get_score
+    check_word_criterion, words_check_answer, words_get_score
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
 from aiogram.types import ReplyKeyboardRemove
 import asyncpg
 import config
-#from aiogram.types.
 
 
 async def user_registration(message: Message):
@@ -23,7 +22,7 @@ async def user_registration(message: Message):
 
     user_reg = """INSERT INTO public.users (id, name) VALUES($1, $2)"""
     score_reg = """INSERT INTO public.score (user_id) VALUES($1)"""
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     try:
         await conn.execute(user_reg, *[user_id, username])
     except asyncpg.exceptions.UniqueViolationError:
@@ -43,11 +42,7 @@ async def words_send_msg(message: Message):
         return
     true_word = true_data.word
     true_translation = true_data.translation
-    print(f'DEBUG выбрано слово: {true_word}')
     wrong_words = await words_get_wrong_translation(true_word)
-    print(f'DEBUG неверные переводы: {wrong_words}')
-    print(f'DEBUG истинный перевод: {((true_translation,))}')
-
 
     answers = [word[0] for word in list(set(wrong_words + [(true_translation,)]))]
 
@@ -72,10 +67,7 @@ async def alphabet_send_msg(message: Message):
     true_translation = true_data.transcription
     user_id = message.from_user.id
 
-    print(f'DEBUG выбрано слово: {true_word}')
     wrong_words = await alphabet_get_wrong_translation(true_word)
-    print(f'DEBUG неверные переводы: {wrong_words}')
-    print(f'DEBUG истинный перевод: {((true_translation,))}')
 
     answers = [word[0] for word in list(set(wrong_words + [(true_translation,)]))]
 
@@ -119,7 +111,7 @@ async def random_send_msg(message: Message):
 
 async def get_score(message: Message):
     msg_user_id = message.from_user.id
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     ans = await conn.fetch(
               f"""select user_id, name, current_score,
                     first_place_count, second_place_count, third_place_count
@@ -128,7 +120,6 @@ async def get_score(message: Message):
                     order by current_score desc
               """)
     await conn.close()
-    print(f'ОТДАЛ ОН {ans}')
 
     msg = ""
     user_seen_flag = 0
@@ -156,7 +147,7 @@ async def get_score(message: Message):
                    f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}> </b>\n"
             msg += ".....\n"
         if i == len(ans):
-            msg += f"{i}. LoshadiNaPereprave - {current_score} баллов!"
+            msg += f"Из {i} участников."
             f"🥇х{first_place_count}, 🥈x{second_place_count}, 🥉x{third_place_count}> \n"
     await message.answer(msg, parse_mode='HTML', reply_markup=ReplyKeyboardRemove())
 
@@ -173,7 +164,7 @@ async def feedback(message: Message):
 
 async def dictionary(message: Message):
     BATCH_SIZE = 100
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     total_words = await conn.fetch("SELECT id, word, translation FROM words")
     msg = ''
     for i, batch in enumerate(total_words):

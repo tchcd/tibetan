@@ -1,4 +1,17 @@
-pg_con = 'postgresql://postgres:postgres@postgres:5432/public' #<PGCONNECTION>
-#pg_con = 'postgresql://postgres:qqwweerrttyy11@localhost:5432/tibetan2' #<PGCONNECTION>
-TOKEN = '6175652151:AAH9daZwDkDJzQ87O-uHUFTL7IVAnOtlj6I' #<BOTTOKEN>
-FEEDBACK_CHAT = -956936730
+from os import environ
+from os.path import join, dirname
+from dotenv import load_dotenv
+
+
+def get_from_env(key):
+    dotenv_path = join(dirname(__file__), ".env")
+    load_dotenv(dotenv_path)
+    return environ.get(key)
+
+
+DB_PASSWORD = get_from_env('DB_PASSWORD')
+DB_USER = get_from_env('DB_USER')
+DB_SCHEMA = get_from_env('DB_SCHEMA')
+PG_CON = get_from_env('PG_CONNECTION')
+TOKEN = get_from_env('TG_TOKEN')
+FEEDBACK_CHAT = get_from_env('CHAT_ID')

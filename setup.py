@@ -162,7 +162,7 @@ async def add_alphabet(conn):
 
 
 async def main():
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     await run(conn)
     await add_words(conn)
     await add_alphabet(conn)

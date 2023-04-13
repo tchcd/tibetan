@@ -1,6 +1,6 @@
 import asyncpg
 import config
-from typing import NamedTuple, List, Tuple, Optional
+from typing import List
 from datetime import datetime, timedelta
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
@@ -36,14 +36,12 @@ async def check_word_criterion(next_attempt, message):
         keyboard.add(KeyboardButton('/start', callback_data='start'))
         await message.answer(f"Нет новых слов для повторений. \nСледующее слово в {next_attempt} \n"
                              f"Нажмите /start и выберите тренировку", reply_markup=keyboard)
-        #raise ValueError('Нет слов для повторений!')
-        #return False
     else:
         return True
 
 
 async def run_connection():
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     return conn
 
 
@@ -52,7 +50,7 @@ async def close_connection(conn):
 
 
 async def words_get_word(user_id: int) -> Word:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
 
     word = await conn.fetchrow(
                     f"""SELECT w.id, w.word, w.translation, next_attempt
@@ -67,13 +65,12 @@ async def words_get_word(user_id: int) -> Word:
                             --NOW() AT TIME ZONE 'Europe/Moscow' as next_attempt
                             FROM words w ORDER BY random() LIMIT 1
                         """)
-    print('ВЫБРАЛ СЛОВО ПОСЛЕ ЗАПРОСА', word)
     await conn.close()
     return Word(*word)
 
 
 async def words_get_wrong_translation(true_word: str) -> List[tuple]:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     res = await conn.fetch(
         f"""SELECT translation
             FROM words
@@ -87,7 +84,7 @@ async def words_get_wrong_translation(true_word: str) -> List[tuple]:
 
 
 async def words_get_score(user_id: str):
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     score = await conn.fetchval(
         f"""SELECT current_score
             FROM score
@@ -98,7 +95,7 @@ async def words_get_score(user_id: str):
 
 
 async def words_check_answer(user_id, user_answer, correct_answer, message, data):
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     score = data.get('score')
     if user_answer == correct_answer:
         await message.answer("Вы выбрали правильный ответ!")
@@ -128,7 +125,7 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
                                  interval=0)
     attempt.last_attempt = datetime.now().replace(microsecond=0)
 
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     attempt.user_id = user
     attempt.word_id = await conn.fetchval(
         f"""SELECT id FROM words WHERE word = '{word}'"""
@@ -139,8 +136,6 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
     history_record = await conn.fetchrow(
         f"""SELECT id, interval, next_attempt FROM words_history 
         WHERE user_id = '{attempt.user_id}' AND word_id = '{attempt.word_id}'""")
-
-    # Проверка наступила ли следующая попытка для слова
 
     if history_record:
         history_record = list(history_record)

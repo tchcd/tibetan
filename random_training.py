@@ -1,8 +1,6 @@
 import asyncpg
 import config
-from typing import NamedTuple, List, Tuple, Optional
-from datetime import datetime, timedelta
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from typing import List
 from dataclasses import dataclass
 
 
@@ -14,7 +12,7 @@ class RandomWord:
 
 
 async def random_get_word() -> RandomWord:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     word = await conn.fetchrow(
                             f"""SELECT w.id, w.word, w.translation
                                 FROM words w ORDER BY random() LIMIT 1
@@ -24,7 +22,7 @@ async def random_get_word() -> RandomWord:
 
 
 async def random_get_wrong_translation(true_word: str) -> List[tuple]:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     res = await conn.fetch(
         f"""SELECT translation
             FROM words

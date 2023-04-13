@@ -1,7 +1,8 @@
 import asyncpg
-from typing import NamedTuple, List
+from typing import List
 from dataclasses import dataclass
 import config
+
 
 @dataclass
 class Letter:
@@ -11,7 +12,7 @@ class Letter:
 
 
 async def alphabet_get_word() -> Letter:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     res = await conn.fetchrow(
                         """SELECT id, letter, transcription
                            FROM alphabet ORDER BY random() LIMIT 1
@@ -21,7 +22,7 @@ async def alphabet_get_word() -> Letter:
 
 
 async def alphabet_get_wrong_translation(true_word: str) -> List[tuple]:
-    conn = await asyncpg.connect(config.pg_con)
+    conn = await asyncpg.connect(config.PG_CON)
     res = await conn.fetch(
         f"""SELECT transcription
             FROM alphabet
