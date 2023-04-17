@@ -1,14 +1,14 @@
 import asyncpg
 import config
 import asyncio
-
+import json
 
 async def create_users(conn):
     sql = """DROP TABLE IF EXISTS users CASCADE;
     CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50),
-    last_name VARCHAR(50),
+    name TEXT,
+    last_name TEXT,
     reg_date TIMESTAMP
     );"""
     await conn.execute(sql)
@@ -18,8 +18,8 @@ async def create_words(conn):
     sql = """DROP TABLE IF EXISTS words CASCADE;
          CREATE TABLE words (
         id SERIAL PRIMARY KEY,
-        word VARCHAR(50) UNIQUE,
-        translation VARCHAR(100)
+        word TEXT UNIQUE,
+        translation TEXT
         );"""
     await conn.execute(sql)
 
@@ -28,8 +28,8 @@ async def create_alphabet(conn):
     sql = """DROP TABLE IF EXISTS alphabet CASCADE;
          CREATE TABLE alphabet (
         id SERIAL PRIMARY KEY,
-        letter VARCHAR(50) UNIQUE,
-        transcription VARCHAR(100)
+        letter TEXT UNIQUE,
+        transcription TEXT
         );"""
     await conn.execute(sql)
 
@@ -69,16 +69,12 @@ async def run(conn):
 
 
 async def add_words(conn):
-    dict = {
-        "ས་": "земля", "ཆུ་": "вода", "མེ་": "огонь", "བོད་": "Тибет", "ཨཔ་": "отец", "ཨམ་": "мать", "ཨཁུ་": "дядя",
-        "བུ་": "мальчик, сын", "བུམོ་": "девочка, дочь", "ཉིམ་": "солнце",
-        "དུབ་": "дым", "ཞིམི་": "кошка", "ཞམོ་": "шапка", "ཨོམ་": "молоко", "གཞམ་": "готовить, подготавливать",
-        "གསལ་": "ясный, прояснять", "མངར་": "сладкий"
-    }
+    with open('./initial_dict.json', 'r') as f:
+        init_dict = json.load(f)
     sql = """
     INSERT INTO public.words (word, translation) VALUES($1, $2)
     """
-    for key, value in dict.items():
+    for key, value in init_dict.items():
         await conn.execute(sql, key, value)
 
 

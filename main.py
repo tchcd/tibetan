@@ -1,6 +1,7 @@
 from create_bot import dp, bot
 from words_training import words_get_word, words_get_wrong_translation,\
     check_word_criterion, words_check_answer, words_get_score
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
 from aiogram.types import ReplyKeyboardRemove
