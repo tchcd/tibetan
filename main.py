@@ -1,31 +1,35 @@
 from create_bot import dp, bot
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from datetime import datetime
 from words_training import words_get_word, words_get_wrong_translation,\
     check_word_criterion, words_check_answer, words_get_score
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
-from aiogram.types import ReplyKeyboardRemove
 import asyncpg
+import asyncio
 import config
 
 
 async def user_registration(message: Message):
     user_id = message.from_user.id
     username = message.from_user.username
+    registration_date = datetime.now()
     await message.answer(f"Привет! \nВыберите тренировку:\n"
                          f"/words - слово-перевод с баллами. Каждый правильный ответ +10 баллов, неправильный -5 баллов\n"
-                         f"Ответы изменяют время до следующего повторения слова.\n"
+                         f"Ответы изменяют время до следующего повторения слова\n"
                          f"/alphabet - тренировка надписных и подписных\n"
-                         f"/random - тренировка слово-перевод для случайных слов. Без начисления балов.\n"
-                         f"/feedback - Обратная связь и сообщения об ошибках. \n"
-                         f"/score - Достижения\n\n"
+                         f"/random - тренировка слово-перевод для случайных слов. Без начисления балов\n"
+                         f"/dictionary - Посмотреть все слова в словаре\n\n"
+                         f"/score - Достижения. Победители недели определяются каждую пятницу в 20:00\n\n"
+                         f"/feedback - Обратная связь и сообщения об ошибках \n"
+                         
                          f"Все команды можно посмотреть в синем меню")
 
-    user_reg = """INSERT INTO public.users (id, name) VALUES($1, $2)"""
+    user_reg = """INSERT INTO public.users (id, name, reg_date) VALUES($1, $2, $3)"""
     score_reg = """INSERT INTO public.score (user_id) VALUES($1)"""
     conn = await asyncpg.connect(config.PG_CON)
     try:
-        await conn.execute(user_reg, *[user_id, username])
+        await conn.execute(user_reg, *[user_id, username, registration_date])
     except asyncpg.exceptions.UniqueViolationError:
         pass
     try:
@@ -198,6 +202,8 @@ async def check_answer(message: Message):
         await bot.send_message(config.FEEDBACK_CHAT, feedback_msg)
     else:
         await message.answer(f"Что-то пошло не так! Нажмите /start и попробуйте снова! :)")
+
+
 
 
 def run(dp):
