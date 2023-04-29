@@ -42,7 +42,8 @@ async def create_words_history(conn):
         word_id INTEGER REFERENCES words(id),
         last_attempt TIMESTAMP,
         next_attempt TIMESTAMP,
-        interval INTEGER
+        interval INTEGER,
+        force_repeat INTEGER DEFAULT 0
         );"""
     await conn.execute(sql)
 
@@ -52,10 +53,10 @@ async def create_score(conn):
     CREATE TABLE score (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id),
-    current_score INTEGER default 0,
-    first_place_count INTEGER default 0,
-    second_place_count INTEGER default 0,
-    third_place_count INTEGER default 0
+    current_score INTEGER DEFAULT 0,
+    first_place_count INTEGER DEFAULT 0,
+    second_place_count INTEGER DEFAULT 0,
+    third_place_count INTEGER DEFAULT 0
     );"""
     await conn.execute(sql)
 

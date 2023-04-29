@@ -25,6 +25,7 @@ class WordHistoryAttempt:
     last_attempt: datetime
     next_attempt: datetime
     interval: int
+    force_repeat: int
 
 
 async def check_word_criterion(next_attempt, message):
@@ -57,7 +58,8 @@ async def words_get_word(user_id: int) -> Word:
                         FROM words w
                         LEFT JOIN words_history wh on w.id=wh.word_id
                         WHERE wh.user_id = {user_id} or wh.user_id is Null
-                        ORDER BY COALESCE(next_attempt, '1111-11-11') ASC LIMIT 1
+                        ORDER BY force_repeat DESC, COALESCE(next_attempt, '1111-11-11') ASC
+                        LIMIT 1
                     """)
     if not word:
         word = await conn.fetchrow(
@@ -118,10 +120,10 @@ async def words_check_answer(user_id, user_answer, correct_answer, message, data
 
 
 async def add_attempt_to_history(user: int, word: str, message: Message, success: bool):
-    default_interval = 3600  # one hour
+    default_interval = 3600  # 1 hour
     attempt = WordHistoryAttempt(id=0, user_id=0, word='',
                                  last_attempt=datetime.min, next_attempt=datetime.min,
-                                 interval=0)
+                                 interval=0, force_repeat=999)
     attempt.last_attempt = datetime.now().replace(microsecond=0)
 
     conn = await asyncpg.connect(config.PG_CON)
@@ -140,33 +142,38 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
         history_record = list(history_record)
         attempt.id, attempt.interval = history_record[0], history_record[1]
         attempt.interval = attempt.interval * 2 if success else attempt.interval / 3 + timedelta(seconds=1800).total_seconds()
+        attempt.force_repeat = 0 if success else 1
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=attempt.interval)
 
-        if attempt.next_attempt > attempt.last_attempt + timedelta(days=30):
-            attempt.next_attempt = attempt.last_attempt + timedelta(days=30)
-            max_data = attempt.last_attempt + timedelta(days=30)
+        if attempt.next_attempt > attempt.last_attempt + timedelta(days=14):
+            attempt.next_attempt = attempt.last_attempt + timedelta(days=14)
+            max_data = attempt.last_attempt + timedelta(days=14)
             attempt.interval = (max_data - attempt.last_attempt).total_seconds()
 
         update_row = f"""UPDATE words_history SET 
                                 last_attempt = $1,
                                 next_attempt = $2,
-                                interval = $3
+                                interval = $3,
+                                force_repeat = $4
                          WHERE user_id = {attempt.user_id}
                          AND word_id = {attempt.word_id}
                                 """
         values = [attempt.last_attempt,
                   attempt.next_attempt,
-                  attempt.interval]
+                  attempt.interval,
+                  attempt.force_repeat]
         await conn.execute(update_row, *values)
         await conn.close()
     else:
+        attempt.interval = default_interval
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=default_interval)
-        insert_row = f"""INSERT INTO words_history (user_id, word_id, last_attempt, next_attempt)
-                         VALUES ($1, $2, $3, $4)
+        attempt.force_repeat = 0 if success else 1
+        insert_row = f"""INSERT INTO words_history (user_id, word_id, last_attempt, next_attempt, interval, force_repeat)
+                         VALUES ($1, $2, $3, $4, $5, $6)
                         """
         values = [attempt.user_id, attempt.word_id,
-                  attempt.last_attempt,
-                  attempt.next_attempt]
+                  attempt.last_attempt, attempt.next_attempt,
+                  attempt.interval, attempt.force_repeat]
         await conn.execute(insert_row, *values)
         await conn.close()
 
