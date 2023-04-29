@@ -14,6 +14,7 @@ class Word:
     id: int
     word: str
     translation: str
+    force_repeat: int
     next_attempt: datetime = datetime.min
 
 
@@ -28,11 +29,11 @@ class WordHistoryAttempt:
     force_repeat: int
 
 
-async def check_word_criterion(next_attempt, message):
+async def check_word_criterion(next_attempt, force_repeat, message):
     time_now = datetime.now()
     if next_attempt is None:
         return True
-    if next_attempt > time_now:
+    if next_attempt > time_now and force_repeat == 0:
         keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         keyboard.add(KeyboardButton('/start', callback_data='start'))
         await message.answer(f"Нет новых слов для повторений. \nСледующее слово в {next_attempt} \n"
@@ -54,7 +55,7 @@ async def words_get_word(user_id: int) -> Word:
     conn = await asyncpg.connect(config.PG_CON)
 
     word = await conn.fetchrow(
-                    f"""SELECT w.id, w.word, w.translation, next_attempt
+                    f"""SELECT w.id, w.word, w.translation, next_attempt, force_repeat
                         FROM words w
                         LEFT JOIN words_history wh on w.id=wh.word_id
                         WHERE wh.user_id = {user_id} or wh.user_id is Null
@@ -63,7 +64,7 @@ async def words_get_word(user_id: int) -> Word:
                     """)
     if not word:
         word = await conn.fetchrow(
-                        f"""SELECT w.id, w.word, w.translation, next_attempt
+                        f"""SELECT w.id, w.word, w.translation, next_attempt, force_repeat = 0
                             FROM words w ORDER BY random() LIMIT 1
                         """)
     await conn.close()
