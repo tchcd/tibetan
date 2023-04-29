@@ -41,6 +41,7 @@ async def check_time():
             users_str = '\n'.join([f'{user[0]}: {user[1]}' for user in users])
             await bot.send_message(config.CHAT_BOT_ID, celebrate_msg+users_str, parse_mode='HTML')
             await conn.execute(clear_score_q)
+            await conn.close()
         await asyncio.sleep(60)
 
 

@@ -6,7 +6,6 @@ from words_training import words_get_word, words_get_wrong_translation,\
 from alphabet_training import alphabet_get_word, alphabet_get_wrong_translation, alphabet_check_answer
 from random_training import *
 import asyncpg
-import asyncio
 import config
 
 
@@ -81,7 +80,7 @@ async def alphabet_send_msg(message: Message):
         keyboard.add(KeyboardButton(str(answer1)),
                      KeyboardButton(str(answer2)))
 
-    await message.answer(f"Выберите правильный перевод слова: {true_word}", reply_markup=keyboard)
+    await message.answer(f"Выберите правильный перевод слова:\n{true_word}", reply_markup=keyboard)
     message.answer_data = {'correct_answer': true_translation}
 
     user_data = dp.current_state(user=user_id)

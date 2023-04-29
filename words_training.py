@@ -14,7 +14,7 @@ class Word:
     id: int
     word: str
     translation: str
-    next_attempt: datetime = '1111-11-11 00:00:00'
+    next_attempt: datetime = datetime.min
 
 
 @dataclass
@@ -62,7 +62,6 @@ async def words_get_word(user_id: int) -> Word:
     if not word:
         word = await conn.fetchrow(
                         f"""SELECT w.id, w.word, w.translation, next_attempt
-                            --NOW() AT TIME ZONE 'Europe/Moscow' as next_attempt
                             FROM words w ORDER BY random() LIMIT 1
                         """)
     await conn.close()
