@@ -42,7 +42,7 @@ async def words_send_msg(message: Message):
     user_id = message.from_user.id
     score = await words_get_score(user_id)
     true_data = await words_get_word(user_id)
-    if not await check_word_criterion(true_data.next_attempt, true_data.force_repeat, message):
+    if not await check_word_criterion(user_id, true_data.next_attempt, true_data.force_repeat, message):
         return
     true_word = true_data.word
     true_translation = true_data.translation

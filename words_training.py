@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime, timedelta
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
+import random
 
 SUCCESS_SCORE_CONST = 10
 FAILURE_SCORE_CONST = 5
@@ -29,11 +30,25 @@ class WordHistoryAttempt:
     force_repeat: int
 
 
-async def check_word_criterion(next_attempt, force_repeat, message):
+async def is_force_repeat_empty(user_id) -> bool:
+    conn = await asyncpg.connect(config.PG_CON)
+    word = await conn.fetchrow(
+        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+                                FROM words w
+                                LEFT JOIN words_history wh on w.id=wh.word_id
+                                WHERE wh.user_id = {user_id} 
+                                AND force_repeat = 1
+                                LIMIT 1
+                            """)
+    await conn.close()
+    return bool(not word)
+
+
+async def check_word_criterion(user_id, next_attempt, force_repeat, message):
     time_now = datetime.now()
     if next_attempt is None:
         return True
-    if next_attempt > time_now and force_repeat == 0:
+    if next_attempt > time_now and force_repeat == 0 and await is_force_repeat_empty(user_id):
         keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         keyboard.add(KeyboardButton('/start', callback_data='start'))
         await message.answer(f"Нет новых слов для повторений. \nСледующее слово в {next_attempt} \n"
@@ -42,33 +57,54 @@ async def check_word_criterion(next_attempt, force_repeat, message):
         return True
 
 
-async def run_connection():
+async def get_word_by_schedule(user_id: int) -> Word:
     conn = await asyncpg.connect(config.PG_CON)
-    return conn
-
-
-async def close_connection(conn):
+    word = await conn.fetchrow(
+        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+                            FROM words w
+                            LEFT JOIN words_history wh on w.id=wh.word_id
+                            WHERE wh.user_id = {user_id} or wh.user_id is Null
+                            ORDER BY COALESCE(next_attempt, '1111-11-11') ASC
+                            LIMIT 1
+                        """)
+    if not word:
+        word = await conn.fetchrow(
+            f"""SELECT w.id, w.word, w.translation, force_repeat = 0, next_attempt
+                                FROM words w ORDER BY random() LIMIT 1
+                            """)
     await conn.close()
+    return Word(*word)
+
+
+async def get_word_by_force_repeat(user_id: int) -> Word:
+    conn = await asyncpg.connect(config.PG_CON)
+    word = await conn.fetchrow(
+        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+                            FROM words w
+                            LEFT JOIN words_history wh on w.id=wh.word_id
+                            WHERE wh.user_id = {user_id} or wh.user_id is Null
+                            ORDER BY force_repeat DESC, COALESCE(next_attempt, '1111-11-11') ASC
+                            LIMIT 1
+                        """)
+    if not word:
+        word = await conn.fetchrow(
+            f"""SELECT w.id, w.word, w.translation, force_repeat = 0, next_attempt
+                                FROM words w ORDER BY random() LIMIT 1
+                            """)
+    await conn.close()
+    return Word(*word)
 
 
 async def words_get_word(user_id: int) -> Word:
-    conn = await asyncpg.connect(config.PG_CON)
-
-    word = await conn.fetchrow(
-                    f"""SELECT w.id, w.word, w.translation, next_attempt, force_repeat
-                        FROM words w
-                        LEFT JOIN words_history wh on w.id=wh.word_id
-                        WHERE wh.user_id = {user_id} or wh.user_id is Null
-                        ORDER BY force_repeat DESC, COALESCE(next_attempt, '1111-11-11') ASC
-                        LIMIT 1
-                    """)
-    if not word:
-        word = await conn.fetchrow(
-                        f"""SELECT w.id, w.word, w.translation, next_attempt, force_repeat = 0
-                            FROM words w ORDER BY random() LIMIT 1
-                        """)
-    await conn.close()
-    return Word(*word)
+    choice = random.randint(1, 3)
+    time_now = datetime.now()
+    if choice == 3:
+        word = await get_word_by_force_repeat(user_id)
+    else:
+        word = await get_word_by_schedule(user_id)
+        #if word.next_attempt and word.next_attempt > time_now:
+        #    word = await get_word_by_force_repeat(user_id)
+    return word
 
 
 async def words_get_wrong_translation(true_word: str) -> List[tuple]:
@@ -126,7 +162,7 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
                                  last_attempt=datetime.min, next_attempt=datetime.min,
                                  interval=0, force_repeat=999)
     attempt.last_attempt = datetime.now().replace(microsecond=0)
-
+    attempt.force_repeat = 0 if success else 1
     conn = await asyncpg.connect(config.PG_CON)
     attempt.user_id = user
     attempt.word_id = await conn.fetchval(
@@ -142,8 +178,7 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
     if history_record:
         history_record = list(history_record)
         attempt.id, attempt.interval = history_record[0], history_record[1]
-        attempt.interval = attempt.interval * 2 if success else attempt.interval / 3 + timedelta(seconds=1800).total_seconds()
-        attempt.force_repeat = 0 if success else 1
+        attempt.interval = attempt.interval * 2 if success else attempt.interval / 3 + timedelta(seconds=900).total_seconds()
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=attempt.interval)
 
         if attempt.next_attempt > attempt.last_attempt + timedelta(days=14):
@@ -168,7 +203,6 @@ async def add_attempt_to_history(user: int, word: str, message: Message, success
     else:
         attempt.interval = default_interval
         attempt.next_attempt = attempt.last_attempt + timedelta(seconds=default_interval)
-        attempt.force_repeat = 0 if success else 1
         insert_row = f"""INSERT INTO words_history (user_id, word_id, last_attempt, next_attempt, interval, force_repeat)
                          VALUES ($1, $2, $3, $4, $5, $6)
                         """
