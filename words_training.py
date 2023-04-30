@@ -5,10 +5,11 @@ from datetime import datetime, timedelta
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
 import random
+import pytz
 
 SUCCESS_SCORE_CONST = 10
 FAILURE_SCORE_CONST = 5
-
+tz = pytz.timezone('Europe/Moscow')
 
 @dataclass
 class Word:
@@ -51,7 +52,8 @@ async def check_word_criterion(user_id, next_attempt, force_repeat, message):
     if next_attempt > time_now and force_repeat == 0 and await is_force_repeat_empty(user_id):
         keyboard = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         keyboard.add(KeyboardButton('/start', callback_data='start'))
-        await message.answer(f"Нет новых слов для повторений. \nСледующее слово в {next_attempt} \n"
+        await message.answer(f"Нет новых слов для повторений. \n"
+                             f"Следующее слово в {tz.localize(next_attempt).strftime('%Y-%m-%d %H:%M:%S')}\n"
                              f"Нажмите /start и выберите тренировку", reply_markup=keyboard)
     else:
         return True
@@ -102,8 +104,8 @@ async def words_get_word(user_id: int) -> Word:
         word = await get_word_by_force_repeat(user_id)
     else:
         word = await get_word_by_schedule(user_id)
-        #if word.next_attempt and word.next_attempt > time_now:
-        #    word = await get_word_by_force_repeat(user_id)
+        if word.next_attempt and word.next_attempt > time_now:
+            word = await get_word_by_force_repeat(user_id)
     return word
 
 

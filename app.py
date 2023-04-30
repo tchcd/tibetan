@@ -5,11 +5,14 @@ import asyncio
 import asyncpg
 from datetime import datetime
 import config
+import pytz
+
+tz = pytz.timezone('Europe/Moscow')
 
 
 async def check_time():
     while True:
-        now = datetime.now()
+        now = datetime.now(tz)
         if now.weekday() == 4 and now.hour == 20 and now.minute == 00:
             conn = await asyncpg.connect(config.PG_CON)
             get_winner_q = """SELECT user_id, rnk, name from (
