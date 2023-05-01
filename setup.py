@@ -3,6 +3,7 @@ import config
 import asyncio
 import json
 
+
 async def create_users(conn):
     sql = """DROP TABLE IF EXISTS users CASCADE;
     CREATE TABLE users (

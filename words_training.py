@@ -6,6 +6,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
 import random
 import pytz
+import sys
 
 SUCCESS_SCORE_CONST = 10
 FAILURE_SCORE_CONST = 5
@@ -60,6 +61,7 @@ async def check_word_criterion(user_id, next_attempt, force_repeat, message):
 
 
 async def get_word_by_schedule(user_id: int) -> Word:
+    sys.stdout.write(f'{user_id} в словах по расписанию')
     conn = await asyncpg.connect(config.PG_CON)
     word = await conn.fetchrow(
         f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
@@ -69,16 +71,19 @@ async def get_word_by_schedule(user_id: int) -> Word:
                             ORDER BY COALESCE(next_attempt, '1111-11-11') ASC
                             LIMIT 1
                         """)
+    sys.stdout.write(f'{user_id} получил слово {word} из WH')
     if not word:
         word = await conn.fetchrow(
-            f"""SELECT w.id, w.word, w.translation, force_repeat = 0, next_attempt
+            f"""SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11' as next_attempt
                                 FROM words w ORDER BY random() LIMIT 1
                             """)
+        sys.stdout.write(f'{user_id} получил слово {word} из W')
     await conn.close()
     return Word(*word)
 
 
 async def get_word_by_force_repeat(user_id: int) -> Word:
+    sys.stdout.write(f'{user_id} в словах по принуждению')
     conn = await asyncpg.connect(config.PG_CON)
     word = await conn.fetchrow(
         f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
@@ -88,11 +93,13 @@ async def get_word_by_force_repeat(user_id: int) -> Word:
                             ORDER BY force_repeat DESC, COALESCE(next_attempt, '1111-11-11') ASC
                             LIMIT 1
                         """)
+    sys.stdout.write(f'{user_id} получил слово {word} из WH')
     if not word:
         word = await conn.fetchrow(
-            f"""SELECT w.id, w.word, w.translation, force_repeat = 0, next_attempt
+            f"""SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11' as next_attempt
                                 FROM words w ORDER BY random() LIMIT 1
                             """)
+        sys.stdout.write(f'{user_id} получил слово {word} из W')
     await conn.close()
     return Word(*word)
 

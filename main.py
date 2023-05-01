@@ -206,8 +206,6 @@ async def check_answer(message: Message):
         await message.answer(f"Что-то пошло не так! Нажмите /start и попробуйте снова! :)")
 
 
-
-
 def run(dp):
     dp.register_message_handler(user_registration, commands=['start'])
     dp.register_message_handler(alphabet_send_msg, commands=['alphabet'])
