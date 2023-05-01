@@ -1,3 +1,5 @@
+import asyncio
+
 from create_bot import dp, bot
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from datetime import datetime
@@ -55,7 +57,7 @@ async def words_send_msg(message: Message):
         keyboard.add(KeyboardButton(str(answer1)),
                      KeyboardButton(str(answer2)))
 
-    await message.answer(f"Выберите правильный перевод слова: {true_word}", reply_markup=keyboard)
+    await message.answer(f"Выберите правильный перевод слова:\n{true_word}", reply_markup=keyboard)
     message.answer_data = {'correct_answer': true_translation}
 
     user_data = dp.current_state(user=user_id)
@@ -104,7 +106,7 @@ async def random_send_msg(message: Message):
         keyboard.add(KeyboardButton(str(answer1)),
                      KeyboardButton(str(answer2)))
 
-    await message.answer(f"Выберите правильный перевод слова: {true_word}", reply_markup=keyboard)
+    await message.answer(f"Выберите правильный перевод слова:\n{true_word}", reply_markup=keyboard)
     message.answer_data = {'correct_answer': true_translation}
 
     user_data = dp.current_state(user=user_id)
@@ -175,6 +177,7 @@ async def dictionary(message: Message):
         msg += f"{batch['id']}. {batch['word']} - {batch['translation']}\n"
         if (i + 1) % BATCH_SIZE == 0 or i == len(total_words) - 1:
             await message.answer(msg, reply_markup=ReplyKeyboardRemove())
+            await asyncio.sleep(0.1)
             msg = ''
     await conn.close()
 

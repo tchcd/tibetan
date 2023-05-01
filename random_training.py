@@ -39,4 +39,4 @@ async def random_check_answer(user_answer, correct_answer, message):
     if user_answer == correct_answer:
         await message.answer("Вы выбрали правильный ответ!")
     else:
-        await message.answer(f"Неправильный ответ! Правильный ответ: {correct_answer}")
+        await message.answer(f"Неправильный ответ! Правильный ответ:\n{correct_answer}")
