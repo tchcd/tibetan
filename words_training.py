@@ -13,6 +13,7 @@ SUCCESS_SCORE_CONST = 10
 FAILURE_SCORE_CONST = 5
 tz = pytz.timezone('Europe/Moscow')
 
+
 @dataclass
 class Word:
     id: int
@@ -44,16 +45,8 @@ class WordHistoryAttempt:
 
 
 async def is_force_repeat_empty(user_id) -> bool:
-    conn = await asyncpg.connect(config.PG_CON)
-    word = await conn.fetchrow(
-        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-                                FROM words w
-                                LEFT JOIN words_history wh on w.id=wh.word_id
-                                WHERE wh.user_id = {user_id} 
-                                AND force_repeat = 1
-                                LIMIT 1
-                            """)
-    await conn.close()
+    async with db(config.PG_CON) as conn:
+        word = await conn.check_is_force_list_empty(user_id=user_id)
     return bool(not word)
 
 
@@ -71,112 +64,54 @@ async def check_word_criterion(user_id, next_attempt, force_repeat, message):
         return True
 
 
-async def words_get_word(user_id: int) -> Word:
-    #conn = await asyncpg.connect(config.PG_CON)
-    # Get new added, not shown word
-    # word = await conn.fetchrow(
-    #                     f"""
-    #                     SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11 00:00:00' as next_attempt
-    #                     FROM words w
-    #                     WHERE id = (
-    #                         SELECT id FROM(
-    #                         SELECT id FROM words
-    #                         EXCEPT
-    #                         SELECT word_id FROM words_history
-    #                         WHERE user_id = {user_id}
-    #                         )t
-    #                         ORDER BY RANDOM() LIMIT 1
-    #                     )
-    #                     """)
+async def get_word_by_schedule(user_id):
+    choice = random.randint(1, 3)
+    async with db(config.PG_CON) as conn:
+        word = await conn.get_main_word(user_id=user_id)
+    if Word(*word).next_attempt > datetime.now() or choice == 3:
+        async with db(config.PG_CON) as conn:
+            force_word = await conn.get_force_word(user_id=user_id)
+        if force_word:
+            return Word(*force_word)
+        else:
+            return Word(*word)
+    else:
+        return Word(*word)
+
+
+async def get_not_shown_word(user_id):
     async with db(config.PG_CON) as conn:
         word = await conn.get_new_word(user_id=user_id)
-
     if word:
-        print(f'{user_id}-{word} есть слова в словницах')
         choice = random.randint(1, 3)
-        print(f'{user_id} - РАНДОМ словницы {choice}')
         if choice != 3:
-            print(f'ВЕРНУЛ {word}')
-            #await conn.close()
             return Word(*word)
         else:
-            # force_word = await conn.fetchrow(
-            #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-            #         FROM words w
-            #         LEFT JOIN words_history wh on w.id=wh.word_id
-            #         WHERE wh.user_id = {user_id} AND force_repeat = 1
-            #         LIMIT 1
-            #     """)
             async with db(config.PG_CON) as conn:
                 force_word = await conn.get_force_word(user_id=user_id)
-            print('Смотрю если ли форс')
             if force_word:
-                print(f'есть, вернул форс {force_word}')
-                #await conn.close()
                 return Word(*force_word)
             else:
-                print(f'нет, вернул ворд {word}')
-                #await conn.close()
                 return Word(*word)
+
+
+async def words_get_word(user_id: int) -> Word:
+    word = await get_not_shown_word(user_id)
     if not word:
-        print(f'{user_id} слова кончились')
-        choice = random.randint(1, 3)
-        print(f'РАНДОМ {choice}')
-        # word = await conn.fetchrow(
-        #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-        #                         FROM words w
-        #                         LEFT JOIN words_history wh on w.id=wh.word_id
-        #                         WHERE wh.user_id = {user_id}
-        #                         ORDER BY COALESCE(next_attempt, '1111-11-11 00:00:00') ASC
-        #                         LIMIT 1
-        #                     """)
-        async with db(config.PG_CON) as conn:
-            word = await conn.get_main_word(user_id=user_id)
-        print(f'взял слово {word} из основной')
-        if Word(*word).next_attempt > datetime.now() or choice == 3:
-            print(f'сыграл либо чойс == {choice} либо нет слов в основной')
-            # force_word = await conn.fetchrow(
-            #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-            #         FROM words w
-            #         LEFT JOIN words_history wh on w.id=wh.word_id
-            #         WHERE wh.user_id = {user_id} AND force_repeat = 1
-            #         LIMIT 1
-            #     """)
-            async with db(config.PG_CON) as conn:
-                force_word = await conn.get_force_word(user_id=user_id)
-            if force_word:
-                #await conn.close()
-                return Word(*force_word)
-            else:
-                #await conn.close()
-                return Word(*word)
-        else:
-            #await conn.close()
-            return Word(*word)
+        word = await get_word_by_schedule(user_id)
+    return word
 
 
 async def words_get_wrong_translation(true_word: str) -> List[tuple]:
-    conn = await asyncpg.connect(config.PG_CON)
-    res = await conn.fetch(
-        f"""SELECT translation
-            FROM words
-            WHERE word != '{true_word}'
-            ORDER BY random()
-            LIMIT 3;
-        """)
-    await conn.close()
+    async with db(config.PG_CON) as conn:
+        res = await conn.get_wrong_translations(true_word)
     wrong_words = [tuple(row) for row in res]
     return wrong_words
 
 
 async def words_get_score(user_id: str):
-    conn = await asyncpg.connect(config.PG_CON)
-    score = await conn.fetchval(
-        f"""SELECT current_score
-            FROM score
-            WHERE user_id = '{user_id}';
-        """)
-    await conn.close()
+    async with db(config.PG_CON) as conn:
+        score = await conn.get_score(user_id)
     return int(score)
 
 

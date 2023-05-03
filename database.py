@@ -50,3 +50,33 @@ class Database:
                                 LIMIT 1
                             """)
         return main_word
+
+    async def check_is_force_list_empty(self, user_id):
+        word = await self.connection.fetchrow(
+            f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+                                FROM words w
+                                LEFT JOIN words_history wh on w.id=wh.word_id
+                                WHERE wh.user_id = {user_id} 
+                                AND force_repeat = 1
+                                LIMIT 1
+                            """)
+        return word
+
+    async def get_wrong_translations(self, true_word):
+        res = await self.connection.fetch(
+            f"""SELECT translation
+                    FROM words
+                    WHERE word != '{true_word}'
+                    ORDER BY random()
+                    LIMIT 3;
+                """)
+        return res
+
+    async def get_score(self, user_id):
+        score = await self.connection.fetchval(
+            f"""SELECT current_score
+                    FROM score
+                    WHERE user_id = '{user_id}';
+                """)
+        return score
+
