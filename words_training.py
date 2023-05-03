@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime, timedelta
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dataclasses import dataclass
+from database import Database as db
 import random
 import pytz
 import sys
@@ -20,6 +21,10 @@ class Word:
     force_repeat: int
     next_attempt: datetime = datetime.min
 
+    def __post_init__(self):
+        if isinstance(self.next_attempt, str):
+            self.next_attempt = datetime.strptime(self.next_attempt, "%Y-%m-%d %H:%M:%S")
+
 
 @dataclass
 class WordHistoryAttempt:
@@ -30,6 +35,12 @@ class WordHistoryAttempt:
     next_attempt: datetime
     interval: int
     force_repeat: int
+
+    def __post_init__(self):
+        if isinstance(self.last_attempt, str):
+            self.last_attempt = datetime.strptime(self.last_attempt, "%Y-%m-%d %H:%M:%S")
+        if isinstance(self.next_attempt, str):
+            self.next_attempt = datetime.strptime(self.next_attempt, "%Y-%m-%d %H:%M:%S")
 
 
 async def is_force_repeat_empty(user_id) -> bool:
@@ -60,60 +71,88 @@ async def check_word_criterion(user_id, next_attempt, force_repeat, message):
         return True
 
 
-async def get_word_by_schedule(user_id: int) -> Word:
-    sys.stdout.write(f'{user_id} в словах по расписанию')
-    conn = await asyncpg.connect(config.PG_CON)
-    word = await conn.fetchrow(
-        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-                            FROM words w
-                            LEFT JOIN words_history wh on w.id=wh.word_id
-                            WHERE wh.user_id = {user_id} or wh.user_id is Null
-                            ORDER BY COALESCE(next_attempt, '1111-11-11') ASC
-                            LIMIT 1
-                        """)
-    sys.stdout.write(f'{user_id} получил слово {word} из WH')
-    if not word:
-        word = await conn.fetchrow(
-            f"""SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11' as next_attempt
-                                FROM words w ORDER BY random() LIMIT 1
-                            """)
-        sys.stdout.write(f'{user_id} получил слово {word} из W')
-    await conn.close()
-    return Word(*word)
-
-
-async def get_word_by_force_repeat(user_id: int) -> Word:
-    sys.stdout.write(f'{user_id} в словах по принуждению')
-    conn = await asyncpg.connect(config.PG_CON)
-    word = await conn.fetchrow(
-        f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
-                            FROM words w
-                            LEFT JOIN words_history wh on w.id=wh.word_id
-                            WHERE wh.user_id = {user_id} or wh.user_id is Null
-                            ORDER BY force_repeat DESC, COALESCE(next_attempt, '1111-11-11') ASC
-                            LIMIT 1
-                        """)
-    sys.stdout.write(f'{user_id} получил слово {word} из WH')
-    if not word:
-        word = await conn.fetchrow(
-            f"""SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11' as next_attempt
-                                FROM words w ORDER BY random() LIMIT 1
-                            """)
-        sys.stdout.write(f'{user_id} получил слово {word} из W')
-    await conn.close()
-    return Word(*word)
-
-
 async def words_get_word(user_id: int) -> Word:
-    choice = random.randint(1, 3)
-    time_now = datetime.now()
-    if choice == 3:
-        word = await get_word_by_force_repeat(user_id)
-    else:
-        word = await get_word_by_schedule(user_id)
-        if word.next_attempt and word.next_attempt > time_now:
-            word = await get_word_by_force_repeat(user_id)
-    return word
+    #conn = await asyncpg.connect(config.PG_CON)
+    # Get new added, not shown word
+    # word = await conn.fetchrow(
+    #                     f"""
+    #                     SELECT w.id, w.word, w.translation, 0 as force_repeat, '1111-11-11 00:00:00' as next_attempt
+    #                     FROM words w
+    #                     WHERE id = (
+    #                         SELECT id FROM(
+    #                         SELECT id FROM words
+    #                         EXCEPT
+    #                         SELECT word_id FROM words_history
+    #                         WHERE user_id = {user_id}
+    #                         )t
+    #                         ORDER BY RANDOM() LIMIT 1
+    #                     )
+    #                     """)
+    async with db(config.PG_CON) as conn:
+        word = await conn.get_new_word(user_id=user_id)
+
+    if word:
+        print(f'{user_id}-{word} есть слова в словницах')
+        choice = random.randint(1, 3)
+        print(f'{user_id} - РАНДОМ словницы {choice}')
+        if choice != 3:
+            print(f'ВЕРНУЛ {word}')
+            #await conn.close()
+            return Word(*word)
+        else:
+            # force_word = await conn.fetchrow(
+            #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+            #         FROM words w
+            #         LEFT JOIN words_history wh on w.id=wh.word_id
+            #         WHERE wh.user_id = {user_id} AND force_repeat = 1
+            #         LIMIT 1
+            #     """)
+            async with db(config.PG_CON) as conn:
+                force_word = await conn.get_force_word(user_id=user_id)
+            print('Смотрю если ли форс')
+            if force_word:
+                print(f'есть, вернул форс {force_word}')
+                #await conn.close()
+                return Word(*force_word)
+            else:
+                print(f'нет, вернул ворд {word}')
+                #await conn.close()
+                return Word(*word)
+    if not word:
+        print(f'{user_id} слова кончились')
+        choice = random.randint(1, 3)
+        print(f'РАНДОМ {choice}')
+        # word = await conn.fetchrow(
+        #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+        #                         FROM words w
+        #                         LEFT JOIN words_history wh on w.id=wh.word_id
+        #                         WHERE wh.user_id = {user_id}
+        #                         ORDER BY COALESCE(next_attempt, '1111-11-11 00:00:00') ASC
+        #                         LIMIT 1
+        #                     """)
+        async with db(config.PG_CON) as conn:
+            word = await conn.get_main_word(user_id=user_id)
+        print(f'взял слово {word} из основной')
+        if Word(*word).next_attempt > datetime.now() or choice == 3:
+            print(f'сыграл либо чойс == {choice} либо нет слов в основной')
+            # force_word = await conn.fetchrow(
+            #     f"""SELECT w.id, w.word, w.translation, force_repeat, next_attempt
+            #         FROM words w
+            #         LEFT JOIN words_history wh on w.id=wh.word_id
+            #         WHERE wh.user_id = {user_id} AND force_repeat = 1
+            #         LIMIT 1
+            #     """)
+            async with db(config.PG_CON) as conn:
+                force_word = await conn.get_force_word(user_id=user_id)
+            if force_word:
+                #await conn.close()
+                return Word(*force_word)
+            else:
+                #await conn.close()
+                return Word(*word)
+        else:
+            #await conn.close()
+            return Word(*word)
 
 
 async def words_get_wrong_translation(true_word: str) -> List[tuple]:
